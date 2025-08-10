@@ -1,10 +1,14 @@
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
+import { getReceiverSocketId,io } from "../lib/socket.js";
+
 export const getUsers = async (req, res) => {
     try {
         const loggedInUserId = req.user._id;
-        const users = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
+        const users = await User.find({ _id: { $ne: loggedInUserId } }).select(
+          "-password"
+        );
         res.status(200).json(users);
     } catch (error) {
         console.log(error);
@@ -37,8 +41,9 @@ export const sendMessage = async (req, res) => {
         if (image) {
             const uploadResponse = await cloudinary.uploader.upload(image);
             ImageUrl = uploadResponse.secure_url;
-
+            console.log(uploadResponse);
         }
+        // console.log("UserId"+userId);
         const newMessage = await Message.create({
             senderId: loggedInUserId,
             receiverId: userId,
@@ -46,9 +51,13 @@ export const sendMessage = async (req, res) => {
             media: ImageUrl
         });
         await newMessage.save();
+        const receiverSocketId=getReceiverSocketId(userId);
+        if(receiverSocketId){
+            io.to(receiverSocketId).emit("newMessage",newMessage);
+        }
         return res.status(200).json(newMessage);
     } catch (error) {
         console.log(error);
-        return res.status(500).json({ message: "Internal server error" });
+        return res.status(500).json({ message: "Interna server error" });
     }
 }
